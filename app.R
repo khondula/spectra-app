@@ -10,9 +10,8 @@
 library(shiny)
 library(ggiraph)
 
-# rs_df <- read_csv('../test.csv')
 water_df <- read_csv("data/water.csv") 
-# water_df <- read_csv("bo-model-app/data/water.csv") 
+leet2 <- read_csv("data/lee1998-t2_phy_abs_coeffs.csv")
 abs_water = data.frame(wl = water_df$lambda_nm,
                        abs_water = water_df$absorption_m1)
 backs_water = data.frame(wl = water_df$lambda_nm,
@@ -20,11 +19,16 @@ backs_water = data.frame(wl = water_df$lambda_nm,
 
 source("R/app-functions.R")
 
-in1 <- sliderInput("absCHL443",
-                   "chl absorb at 443:",
-                   min = 6.12e-3,
-                   max = 9.04e-1,
-                   value = 0.143)
+# in1 <- sliderInput("absCHL443",
+#                    "chl absorb at 443:",
+#                    min = 6.12e-3,
+#                    max = 9.04e-1,
+#                    value = 0.143)
+in1 <- sliderInput("chla",
+                   "chl a concentration:",
+                   min = 0,
+                   max = 20,
+                   value = 1)
 in2 <- sliderInput("absNAP443",
                    "NAP absorb at 443:",
                    min = 2.05e-3,
@@ -110,8 +114,13 @@ ui <- fluidPage(
 # Define server logic required to draw a histogram
 server <- function(input, output) {
 
+    ABSchl440 <- reactive({ 0.06 * (input$chla)^(-0.65) })
+    
     abs_df <- reactive({
-        
+        ABSchl_spectra <- leet2 %>%
+            dplyr::mutate(abs_chl = (a0 + a1*log(ABSchl440()))*ABSchl440()) %>%
+            rename(wl = wavelength) %>%
+            dplyr::select(wl, abs_chl)
         ABSnap_spectra <- calc_absorb_spectra(input$absNAP443, aSF = input$sNAP) %>%
             rename(wl = wavelength, abs_nap = abs_m1) %>%
             dplyr::select(wl, abs_nap)
@@ -122,7 +131,8 @@ server <- function(input, output) {
         abs_df <- abs_water %>%
             left_join(ABSnap_spectra) %>%
             left_join(ABScdom_spectra) %>%
-            mutate(abs_total = abs_water + abs_nap + abs_cdom)
+            left_join(ABSchl_spectra) %>%
+            mutate(abs_total = abs_water + abs_nap + abs_cdom + abs_chl)
         
         abs_df
     })
@@ -186,6 +196,7 @@ server <- function(input, output) {
             geom_line(lwd = 1) +
             geom_line(aes(y = abs_nap), col = "brown") +
             geom_line(aes(y = abs_cdom), col = "orange") +
+            geom_line(aes(y = abs_chl), col = "green") +
             geom_line(aes(y = abs_water), col = "blue") +
             theme_bw() +
             ggtitle("Absorbance")
