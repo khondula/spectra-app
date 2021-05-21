@@ -38,3 +38,11 @@ calc_absorb_spectra <- function(absREF,  aSF =  1.3e-2, wlREF = 443,
     mutate(wlREF = wlREF, SF = aSF)
   return(my_spectra)
 }
+
+
+abs440 = 1
+
+lee_spectra <- leet2 %>%
+  dplyr::mutate(absorb1 = (a0 + a1*log(abs440))*abs440,
+                absorb2 = (a0 + a1*log(0.5))*0.5,
+                absorb3 = (a0 + a1*log(2))*2)

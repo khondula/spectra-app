@@ -10,12 +10,19 @@
 library(shiny)
 library(ggiraph)
 
-water_df <- read_csv("data/water.csv") 
+water_df <- read_csv("data/water-approx1nm.csv") 
 leet2 <- read_csv("data/lee1998-t2_phy_abs_coeffs.csv")
-abs_water = data.frame(wl = water_df$lambda_nm,
-                       abs_water = water_df$absorption_m1)
-backs_water = data.frame(wl = water_df$lambda_nm,
-                         backs_water = 0.5*(water_df$scattering_m1))
+abs_water = data.frame(wl = water_df$wl,
+                       abs_water = water_df$absorb_m1)
+backs_water = data.frame(wl = water_df$wl,
+                         backs_water = water_df$backs_m1)
+lake_river_sites <- c("BARC", "CRAM", "FLNT", 
+                      "LIRO", "PRLA", 
+                      "PRPO", "SUGG",
+                      "TOMB", "TOOK")
+
+spectra_join <- read_csv('data/spectra_join.csv') %>%
+    dplyr::filter(aq_site %in% lake_river_sites)
 
 source("R/app-functions.R")
 
@@ -25,9 +32,10 @@ source("R/app-functions.R")
 #                    max = 9.04e-1,
 #                    value = 0.143)
 in1 <- sliderInput("chla",
-                   "chl a concentration:",
+                   "chl a concentration (mg/m3):",
                    min = 0,
-                   max = 20,
+                   max = 10,
+                   step = 0.25,
                    value = 1)
 in2 <- sliderInput("absNAP443",
                    "NAP absorb at 443:",
@@ -85,30 +93,36 @@ in12 <- sliderInput("scatterSED443",
                    min =  1.04e-4,
                    max =  2.06e1,
                    value =  1.85)
+
+in13 <- selectInput("spectraCol",
+                    "spectra variable",
+                    choices = names(spectra_join)[6:11],
+                    selected = "DOC")
 # outputs
 out1 <- ggiraphOutput("distPlot")
 out2 <- ggiraphOutput("backsPlot")
 out3 <- ggiraphOutput("absPlot")
 # out2 <- tableOutput("mydf")
+out4 <- ggiraphOutput("RrsPlot")
 
 
 # Define UI for application that draws a histogram
-ui <- fluidPage(
-    titlePanel("Simulate Reflectance Spectra"),
-    # Sidebar with a slider input for number of bins 
-    sidebarLayout(
-        sidebarPanel(
-            tabsetPanel(
-                tabPanel("set1", in1, in2, in3, in4, in5, in6),
-                tabPanel("set2", in7, in8, in9, in11, in12, in10))),
-        # Show a plot of the generated distribution
-        mainPanel(
-            tabsetPanel(
-                tabPanel("Reflectance", out1),
-                tabPanel("Absorbance", out3),
-                tabPanel("Backscattering", out2))
-        )
-    )
+ui <- navbarPage("NEON Aquatic Spectra Stuff",
+    tabPanel("Empirical",
+        out4),
+    tabPanel("Simulate",
+             sidebarLayout(
+                 sidebarPanel(
+                     tabsetPanel(
+                         tabPanel("set1", in1, in2, in3, in4, in5, in6),
+                         tabPanel("set2", in7, in8, in9, in11, in12, in10))),
+                 # Show a plot of the generated distribution
+                 mainPanel(
+                     tabsetPanel(
+                         tabPanel("Reflectance", out1),
+                         tabPanel("Absorbance", out3),
+                         tabPanel("Backscattering", out2))
+                 )))
 )
 
 # Define server logic required to draw a histogram
@@ -117,10 +131,13 @@ server <- function(input, output) {
     ABSchl440 <- reactive({ 0.06 * (input$chla)^(-0.65) })
     
     abs_df <- reactive({
-        ABSchl_spectra <- leet2 %>%
+        ABSchl_df <- leet2 %>%
             dplyr::mutate(abs_chl = (a0 + a1*log(ABSchl440()))*ABSchl440()) %>%
             rename(wl = wavelength) %>%
             dplyr::select(wl, abs_chl)
+        ABSchl_spectra <- approx(ABSchl_df$wl, ABSchl_df$abs_chl, xout = 400:800) %>%
+            as.data.frame() %>%
+            rename(wl = 1, abs_chl = 2)
         ABSnap_spectra <- calc_absorb_spectra(input$absNAP443, aSF = input$sNAP) %>%
             rename(wl = wavelength, abs_nap = abs_m1) %>%
             dplyr::select(wl, abs_nap)
@@ -148,6 +165,7 @@ server <- function(input, output) {
     bratio_sed <- reactive({
         input$bbSED/input$scatterSED443
     })
+    
     output$bratio1 <- renderText({bratio_sed()})
     BSsed_spectra <- reactive({
         calc_scatter_spectra(scatterREF = input$scatterSED443, 
@@ -221,6 +239,27 @@ server <- function(input, output) {
             geom_point_interactive(aes(tooltip = backs_total, data_id = backs_total), size = 1)
         x2 <- girafe(code = print(gg2))
         x2    })
+    
+    output$RrsPlot <- renderGirafe({
+        
+        s1 <- spectra_join %>%
+            ggplot(aes(x = wavelength, y = reflectance, group = aop_siteyear,
+                       hover_css = "fill:none;")) +
+            geom_vline(xintercept = c(665, 442), col = "red", lwd = 2, alpha = 0.5) +
+            # geom_line(aes(col = DOC)) +
+            coord_cartesian(ylim = c(0, 0.1)) +
+            scale_color_viridis_c() +
+            theme_bw()
+        gg3 <- s1 +
+            geom_line_interactive(aes(col = DOC, 
+                                      tooltip = aop_siteyear, 
+                                      data_id = aop_siteyear))
+        x3 <- girafe(code = print(gg3), width_svg = 8,
+                     options = list(
+                         opts_hover_inv(css = "opacity:0.3;"),
+                         opts_hover(css = "stroke-width:3;")))
+        x3
+    })
 }
 
 # Run the application 
