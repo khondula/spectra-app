@@ -9,90 +9,68 @@
 
 library(shiny)
 library(ggiraph)
+library(glue)
 
-water_df <- read_csv("data/water-approx1nm.csv") 
-leet2 <- read_csv("data/lee1998-t2_phy_abs_coeffs.csv")
-abs_water = data.frame(wl = water_df$wl,
-                       abs_water = water_df$absorb_m1)
-backs_water = data.frame(wl = water_df$wl,
-                         backs_water = water_df$backs_m1)
-lake_river_sites <- c("BARC", "CRAM", "FLNT", 
-                      "LIRO", "PRLA", 
-                      "PRPO", "SUGG",
-                      "TOMB", "TOOK")
-
-spectra_join <- read_csv('data/spectra_join.csv') %>%
-    dplyr::filter(aq_site %in% lake_river_sites)
 
 source("R/app-functions.R")
-
-# in1 <- sliderInput("absCHL443",
-#                    "chl absorb at 443:",
-#                    min = 6.12e-3,
-#                    max = 9.04e-1,
-#                    value = 0.143)
-in1 <- sliderInput("chla",
-                   "chl a concentration (mg/m3):",
-                   min = 0,
-                   max = 10,
-                   step = 0.25,
-                   value = 1)
-in2 <- sliderInput("absNAP443",
-                   "NAP absorb at 443:",
-                   min = 2.05e-3,
-                   max = 1.73,
-                   value = 0.139)
-in3 <- sliderInput("absCDOM443",
-                   "CDOM absorb at 443:",
+in1 <- numericInput("in1",
+                   "CDOM absorb at ref wl:",
                    min = 9.27e-5,
                    max = 1,
-                   value = 5.01e-1)
-in4 <- sliderInput("sNAP",
+                   value = 10)
+in2 <- numericInput("in2",
+                   "CDOM spectral slope:",
+                   min = 1.5e-2,
+                   max = 0.05,
+                   value = 0.008)
+in3 <- numericInput("in3",
+                   "CDOM ref wavelength:",
+                   min = 100,
+                   max = 800,
+                   value = 440)
+in4 <- numericInput("in4",
+                   "NAP absorb at ref wavelength:",
+                   min = 2.05e-3,
+                   max = 1.73,
+                   value = 5)
+in5 <- numericInput("in5",
                    "NAP spectral slope:",
                    min = 1.1e-2,
                    max = 1.5e-2,
                    value = 1.3e-2)
-in5 <- sliderInput("sCDOM",
-                   "CDOM spectral slope:",
-                   min = 1.5e-2,
-                   max = 1.9e-2,
-                   value = 1.7e-2)
-in6 <- sliderInput("sbCHL",
-                   "CHL scatter slope:",
-                   min = 5.23e-5,
-                   max = 2,
-                   value = 1.01)
-in7 <- sliderInput("sbSED",
-                   "sed scatter slope:",
-                   min = 9.38e-5,
-                   max = 2,
+in6 <- numericInput("in6",
+                   "NAP abs ref wavelength:",
+                   min = 100,
+                   max = 800,
+                   value = 440)
+in7 <- numericInput("in7",
+                   "chl a concentration (ug/L):",
+                   min = 0,
+                   max = 20,
+                   step = 0.25,
                    value = 1)
-in8 <- sliderInput("bbCHL",
-                   "chl bb:",
-                   min = 1e-8,
-                   max = 3.94e-1,
-                   value = 1.73e-2)
-in9 <- sliderInput("bbSED",
-                   "sed bb:",
-                   min =  1e-8,
-                   max =  6.59e-1,
-                   value =  4.64e-2)
-in10 <- sliderInput("mu0",
-                   "zenith angle:",
+in8 <- numericInput("in8",
+                    "particulate scatter at ref wl:",
+                    min =  1.81e-5,
+                    max =  2.08e1,
+                    value =  0.85)
+in9 <- numericInput("in9",
+                   "NAP backscatter ref wavelength:",
+                   min = 100,
+                   max = 800,
+                   value = 555)
+in10 <- numericInput("in10",
+                   "scatter gamma:",
+                   min =  0.3,
+                   max =  1.7,
+                   value =  0.5)
+in11 <- numericInput("in11",
+                   "glint error:",
                    min =  0,
-                   max =  1.4,
+                   max =  10,
                    step = 0.1,
-                   value =  1)
-in11 <- sliderInput("scatterCHL443",
-                   "chl scatter at 443:",
-                   min =  1.81e-5,
-                   max =  2.08e1,
-                   value =  1.85)
-in12 <- sliderInput("scatterSED443",
-                   "sed scatter at 443:",
-                   min =  1.04e-4,
-                   max =  2.06e1,
-                   value =  1.85)
+                   value = 0)
+
 
 in13 <- selectInput("spectraCol",
                     "spectra variable",
@@ -100,8 +78,9 @@ in13 <- selectInput("spectraCol",
                     selected = "DOC")
 # outputs
 out1 <- ggiraphOutput("distPlot")
-out2 <- ggiraphOutput("backsPlot")
-out3 <- ggiraphOutput("absPlot")
+# out1 <- tableOutput("distPlot")
+# out2 <- ggiraphOutput("backsPlot")
+# out3 <- ggiraphOutput("absPlot")
 # out2 <- tableOutput("mydf")
 out4 <- ggiraphOutput("RrsPlot")
 
@@ -114,132 +93,60 @@ ui <- navbarPage("NEON Aquatic Spectra Stuff",
              sidebarLayout(
                  sidebarPanel(
                      tabsetPanel(
-                         tabPanel("set1", in1, in2, in3, in4, in5, in6),
-                         tabPanel("set2", in7, in8, in9, in11, in12, in10))),
+                         tabPanel("set1", in1, in2, in4, in5, in7, in8, in9, in10,),
+                         tabPanel("ref wls", in3, in6, in9, in11))),
                  # Show a plot of the generated distribution
                  mainPanel(
                      tabsetPanel(
-                         tabPanel("Reflectance", out1),
-                         tabPanel("Absorbance", out3),
-                         tabPanel("Backscattering", out2))
+                         tabPanel("Reflectance", out1))
                  )))
 )
 
-# Define server logic required to draw a histogram
+# Define server logic 
 server <- function(input, output) {
+    
+    u_spectra <- reactive({
+        abs_cdom_spectra <- my_wls %>% purrr::map_dbl(~input$in1 * exp(-1*input$in2 * (.x - input$in3)))
+        # ## NAP Absorption
+        abs_nap_spectra <- my_wls %>% purrr::map_dbl(~input$in4 * exp(-1*input$in5 * (.x - input$in6)))
+        # ## Phyto Absorption
+        abs_phy_spectra <- absorb_phyto * input$in7
+        # ## Total Absorption
+        abs_tot <- absorb_water + abs_cdom_spectra + abs_nap_spectra + abs_phy_spectra
+        # ## Particulate backscattering
+        backs_nap_spectra <- my_wls %>% purrr::map_dbl(~input$in8 * (input$in9/.x)^(-1*input$in10))
+        # ## Total backscattering
+        backs_tot <- backs_water + backs_nap_spectra
+        # ## u
+        u_spectra <- (backs_tot/(abs_tot + backs_tot))
+        return(u_spectra)
+    })
+    
+    rrs_df <- reactive({
+        rrs_model_spectra <- (0.949 * u_spectra()) + (0.794 * u_spectra()^(2))
+        Rrs_model_spectra <- (0.52 * rrs_model_spectra)/(1-1.6*rrs_model_spectra) + input$in11
+        rrs_df <- data.frame(wl = my_wls, Rrs = Rrs_model_spectra)
+        return(rrs_df)
+    })
 
-    ABSchl440 <- reactive({ 0.06 * (input$chla)^(-0.65) })
-    
-    abs_df <- reactive({
-        ABSchl_df <- leet2 %>%
-            dplyr::mutate(abs_chl = (a0 + a1*log(ABSchl440()))*ABSchl440()) %>%
-            rename(wl = wavelength) %>%
-            dplyr::select(wl, abs_chl)
-        ABSchl_spectra <- approx(ABSchl_df$wl, ABSchl_df$abs_chl, xout = 400:800) %>%
-            as.data.frame() %>%
-            rename(wl = 1, abs_chl = 2)
-        ABSnap_spectra <- calc_absorb_spectra(input$absNAP443, aSF = input$sNAP) %>%
-            rename(wl = wavelength, abs_nap = abs_m1) %>%
-            dplyr::select(wl, abs_nap)
-        ABScdom_spectra <- calc_absorb_spectra(input$absCDOM443, aSF = input$sCDOM) %>%
-            rename(wl = wavelength, abs_cdom = abs_m1) %>%
-            dplyr::select(wl, abs_cdom)
-        
-        abs_df <- abs_water %>%
-            left_join(ABSnap_spectra) %>%
-            left_join(ABScdom_spectra) %>%
-            left_join(ABSchl_spectra) %>%
-            mutate(abs_total = abs_water + abs_nap + abs_cdom + abs_chl)
-        
-        abs_df
-    })
-    
-    BSchl_spectra <- reactive({
-        calc_scatter_spectra(scatterREF = input$scatterCHL443, 
-                             bSF = input$sbCHL, 
-                             bratio = input$bbCHL/input$scatterCHL443) %>%
-            rename(wl = wavelength, bb_chl = backscatter_m1) %>%
-            dplyr::select(wl, bb_chl)
-        
-    })    
-    bratio_sed <- reactive({
-        input$bbSED/input$scatterSED443
-    })
-    
-    output$bratio1 <- renderText({bratio_sed()})
-    BSsed_spectra <- reactive({
-        calc_scatter_spectra(scatterREF = input$scatterSED443, 
-                             bSF = input$sbSED, 
-                             bratio = bratio_sed()) %>%
-        rename(wl = wavelength, bb_sed = backscatter_m1) %>%
-        dplyr::select(wl, bb_sed)
-        })
-    
-    backs_df <- reactive({
-        backs_df <- backs_water %>%
-            left_join(BSchl_spectra()) %>%
-            left_join(BSsed_spectra()) %>%
-            mutate(backs_total = backs_water + bb_chl + bb_sed)
-        backs_df
-    })
-    
-    rs_df <- reactive({
-        C_mu0 = -0.629 * input$mu0 + 0.975
-        rs_df <- abs_df() %>% 
-            left_join(backs_df()) %>%
-            mutate(rD = 0.544 * C_mu0 * (backs_total/ (abs_total + backs_total)))
-        rs_df
 
-    })
-    # output$mydf <- renderTable({
-    #     head(backs_df())
+    # output$distPlot <- renderTable({
+    #     rrs_df()
     # })
     output$distPlot <- renderGirafe({
 
-        rs1 <- rs_df() %>%
-            # dplyr::filter(wl %in% water_wls) %>%
-            ggplot(aes(x = wl, y = rD)) +
+        rs1 <- rrs_df() %>%
+            ggplot(aes(x = wl, y = Rrs)) +
             geom_line() +
             theme_bw() +
+            ylim(0, NA) +
             ggtitle("Reflectance")
 
         gg1 <- rs1 +
             geom_point_interactive(aes(tooltip = wl, data_id = wl), size = 1)
         x <- girafe(code = print(gg1))
         x    })
-    
-    output$absPlot <- renderGirafe({
-        rs3 <- rs_df() %>% 
-            ggplot(aes(x = wl, y = abs_total)) +
-            geom_line(lwd = 1) +
-            geom_line(aes(y = abs_nap), col = "brown") +
-            geom_line(aes(y = abs_cdom), col = "orange") +
-            geom_line(aes(y = abs_chl), col = "green") +
-            geom_line(aes(y = abs_water), col = "blue") +
-            theme_bw() +
-            ggtitle("Absorbance")
-        gg3 <- rs3 +
-            geom_point_interactive(aes(tooltip = abs_total, data_id = abs_total), size = 1)
-        x3 <- girafe(code = print(gg3))
-        x3   
-    })
-    output$backsPlot <- renderGirafe({
-        
-        rs2 <-  rs_df() %>% 
-            # dplyr::filter(wl %in% water_wls) %>%
-            ggplot(aes(x = wl, y = backs_total)) +
-            geom_line(lwd = 1) +
-            geom_line(aes(y = bb_chl), col = "green") +
-            geom_line(aes(y = bb_sed), col = "orange") +
-            geom_line(aes(y = backs_water), col = "blue") +
-            theme_bw() +
-            ggtitle("Backscattering")
-        
-        gg2 <- rs2 +
-            geom_point_interactive(aes(tooltip = backs_total, data_id = backs_total), size = 1)
-        x2 <- girafe(code = print(gg2))
-        x2    })
-    
+
     output$RrsPlot <- renderGirafe({
         
         s1 <- spectra_join %>%
@@ -252,8 +159,14 @@ server <- function(input, output) {
             theme_bw()
         gg3 <- s1 +
             geom_line_interactive(aes(col = DOC, 
-                                      tooltip = aop_siteyear, 
+                                      tooltip = glue("{aop_siteyear}
+                                           {flightdate}
+                                           DOC: {DOC}
+                                           chla: {`chlorophyll a`}
+                                           tss: {TSS}
+                                           suva254: {`UV Absorbance (250 nm)`}"), 
                                       data_id = aop_siteyear))
+        
         x3 <- girafe(code = print(gg3), width_svg = 8,
                      options = list(
                          opts_hover_inv(css = "opacity:0.3;"),
